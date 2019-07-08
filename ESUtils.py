@@ -30,31 +30,19 @@ class ElasticUtils:
             "mappings": {
                 self.index_type: {
                     "properties": {
-                        "title": {
+                        "Question": {
                             "type": "text",
                             "index": True,
                             "analyzer": "ik_max_word",
-                            "search_analyzer": "ik_max_word"
+                            "search_analyzer": "ik_max_word",
+                            "similarity": "BM25"
                         },
-                        "date": {
+                        "Answer": {
                             "type": "text",
-                            "index": True
-                        },
-                        "keyword": {
-                            "type": "string",
-                            "index": "not_analyzed"
-                        },
-                        "source": {
-                            "type": "string",
-                            "index": "not_analyzed"
-                        },
-                        "link": {
-                            "type": "string",
                             "index": "not_analyzed"
                         }
                     }
                 }
-
             }
         }
 
@@ -62,9 +50,9 @@ class ElasticUtils:
             res = self.es.indices.create(index=self.index_name, body=_index_mappings)
             print(res)
 
-    def IndexData(self):
+    def Index_Data(self):
         es = Elasticsearch()
-        csvdir = 'D:/work/ElasticSearch/exportExcels'
+        csvdir = '/your_csv_path'
         filenamelist = []
         for (dirpath, dirnames, filenames) in walk(csvdir):
             filenamelist.extend(filenames)
@@ -91,15 +79,42 @@ class ElasticUtils:
         doc = {}
         for item in column:
             if index > 1:  # 第一行是标题
-                doc['title'] = item['title']
-                doc['link'] = item['link']
-                doc['date'] = item['date']
-                doc['source'] = item['source']
-                doc['keyword'] = item['keyword']
+                doc['Question'] = item['Question']
+                doc['Answer'] = item['Answer']
                 res = self.es.index(index=self.index_name, doc_type=self.index_type, body=doc)
                 print(res['created'])
             index += 1
             print(index)
+
+    def Up_Data(self, data):
+        '''
+        data = {
+            'title': '美国留给伊拉克的是个烂摊子吗',
+            'url': 'http://view.news.qq.com/zt2011/usa_iraq/index.htm',
+            'date': '2011-12-16'
+        }
+        '''
+        #这里ID需要特别指定
+        result = self.es.update(index=self.index_name, doc_type=self.index_type, body=data, id=1)
+        print(result)
+
+    """
+    通过ElasticSearch从Index中查询文件
+    :param input_text:输入的文本, 返回的答案个数
+    :return: 查询到的匹配输入文本的答案
+    """
+    def search(self, input_text, answer_num):
+        query = {"query": {"match": {"Question": input_text}}}
+        query_doc = self.es.search(body=query, size=answer_num)
+        query_doc_source = query_doc["hits"]["hits"]
+        query_list = []
+        for i in range(len(query_doc_source)):
+            query_list.append(query_doc_source[i]["_source"]["Question"])
+            query_list.append(query_doc_source[i]["_source"]["Answer"])
+
+        return query_list
+
+
 '''
     def Index_Data(self):
         
