@@ -116,12 +116,17 @@ class ElasticUtils:
         query = {"query": {"match": {"Question": input_text}}}
         query_doc = self.es.search(body=query, size=answer_num)
         query_doc_source = query_doc["hits"]["hits"]
-        query_list = []
+        retrieval_result = []
+
         for i in range(len(query_doc_source)):
-            query_list.append(query_doc_source[i]["_source"]["Question"])
-            query_list.append(query_doc_source[i]["_source"]["Answer"])
-            query_list.append(query_doc_source[i]["_source"]["Index"])
-        return query_list
+            if (query_doc_source[i]["_score"] > 6):
+                retrieval_dict = {'Question': "", 'Answer': "", 'Index': 0, 'Score': 0.0}
+                retrieval_dict['Question'] = query_doc_source[i]["_source"]["Question"]
+                retrieval_dict['Answer'] = query_doc_source[i]["_source"]["Answer"]
+                retrieval_dict['Index'] = query_doc_source[i]["_source"]["Index"]
+                retrieval_dict['Score'] = query_doc_source[i]["_score"]
+                retrieval_result.append(retrieval_dict)
+        return retrieval_result
 
 
 '''
@@ -206,17 +211,21 @@ if __name__ == '__main__':
     index_type = "test"
     ip = "192.168.99.231"
     es = ElasticUtils(index_name, index_type, ip)
+
     es.create_index(index_name, index_type)
 
     file = "qa_data.csv"
     es.Index_Data_FromCSV(file)
 
-    query = "蓝牙怎么用"
+    query = "蓝蜂蓝牙怎么用"
     answer = es.search(query)
 
     print("the query is: ", query)
     print("the answer is below: ")
     for a in answer :
-        print(a)
+        print("Question is : ", a['Question'])
+        print("Answer is : ", a['Answer'])
+        print("Index is : ", a['Index'])
+        print("Score is : ", a['Score'])
 
 
