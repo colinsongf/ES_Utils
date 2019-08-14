@@ -1,8 +1,8 @@
 from elasticsearch import Elasticsearch
-#from elasticsearch.helpers import bulk
 import time
 import csv
 from os import walk
+from tqdm import tqdm
 
 class ElasticUtils:
     '''
@@ -11,20 +11,22 @@ class ElasticUtils:
     :param index_type: 索引类型
     :param ip: ES的IP地址
     '''
-    def __init__(self, index_name, index_type, ip="127.0.0.1"):
+
+    def __init__(self, index_name, index_type, ip="127.0.0.1", port="9200"):
         self.index_name = index_name
         self.index_type = index_type
         # 无用户名密码状态
-        IP = {"host": ip, "port": 9200}
+        IP = {"host": ip, "port": port}
         self.es = Elasticsearch([IP])
         # 用户名密码状态
-        #self.es = Elasticsearch([ip], http_auth=('elastic', 'password'), port=9200)
+        # self.es = Elasticsearch([ip], http_auth=('elastic', 'password'), port=9200)
 
     '''
     创建索引,创建索引名称为ott，类型为ott_type的索引
     :param ex: Elasticsearch对象
     :return:
     '''
+
     def create_index(self, index_name="ott", index_type="ott_type"):
         _index_mappings = {
             "mappings": {
@@ -39,7 +41,11 @@ class ElasticUtils:
                         },
                         "Answer": {
                             "type": "text",
-                            "index": "not_analyzed"
+                            "index": False
+                        },
+                        "Index": {
+                            "type": "integer",
+                            "index": False
                         }
                     }
                 }
@@ -70,21 +76,23 @@ class ElasticUtils:
     :param csvfile: csv文件，包括完整路径
     :return:
     '''
+
     def Index_Data_FromCSV(self, csvfile):
         with open(csvfile, 'r') as file:
             reader = csv.DictReader(file)
             column = [row for row in reader]
 
-        index = 0
+        num = 0
         doc = {}
-        for item in column:
-            if index > 1:  # 第一行是标题
-                doc['Question'] = item['Question']
-                doc['Answer'] = item['Answer']
-                res = self.es.index(index=self.index_name, doc_type=self.index_type, body=doc)
-                print(res['created'])
-            index += 1
-            print(index)
+        print("start to insert data")
+        for item in tqdm(column):
+            doc['Question'] = item['Question']
+            doc['Answer'] = item['Answer']
+            doc['Index'] = item['Index']
+            res = self.es.index(index=self.index_name, doc_type=self.index_type, body=doc)
+            num += 1
+
+        print("have insert num is ", num)
 
     def Up_Data(self, data):
         '''
@@ -94,7 +102,7 @@ class ElasticUtils:
             'date': '2011-12-16'
         }
         '''
-        #这里ID需要特别指定
+        # 这里ID需要特别指定
         result = self.es.update(index=self.index_name, doc_type=self.index_type, body=data, id=1)
         print(result)
 
@@ -103,7 +111,8 @@ class ElasticUtils:
     :param input_text:输入的文本, 返回的答案个数
     :return: 查询到的匹配输入文本的答案
     """
-    def search(self, input_text, answer_num):
+
+    def search(self, input_text, answer_num=20):
         query = {"query": {"match": {"Question": input_text}}}
         query_doc = self.es.search(body=query, size=answer_num)
         query_doc_source = query_doc["hits"]["hits"]
@@ -111,7 +120,7 @@ class ElasticUtils:
         for i in range(len(query_doc_source)):
             query_list.append(query_doc_source[i]["_source"]["Question"])
             query_list.append(query_doc_source[i]["_source"]["Answer"])
-
+            query_list.append(query_doc_source[i]["_source"]["Index"])
         return query_list
 
 
@@ -191,5 +200,23 @@ class ElasticUtils:
         print('Performed %d actions' % success)
 '''
 
+
+if __name__ == '__main__':
+    index_name = "faq"
+    index_type = "test"
+    ip = "192.168.99.231"
+    es = ElasticUtils(index_name, index_type, ip)
+    es.create_index(index_name, index_type)
+
+    file = "qa_data.csv"
+    es.Index_Data_FromCSV(file)
+
+    query = "蓝牙怎么用"
+    answer = es.search(query)
+
+    print("the query is: ", query)
+    print("the answer is below: ")
+    for a in answer :
+        print(a)
 
 
